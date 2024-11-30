@@ -1,4 +1,3 @@
-
 # -*- coding: utf-8 -*-
 
 
@@ -51,14 +50,6 @@ class Mlp(nn.Module):
 
 
 def window_partition(x, window_size):
-    """
-    Args:
-        x: (B, H, W, C)
-        window_size (int): window size
-
-    Returns:
-        windows: (num_windows*B, window_size, window_size, C) 堆叠到一起形成一个长条
-    """
     B, H, W, C = x.shape
     x = x.view(B, H // window_size, window_size, W // window_size, window_size, C)
     windows = (
@@ -290,7 +281,7 @@ class SwinTransformerBlock(nn.Module):
         if self.shift_size > 0:
             # calculate attention mask for SW-MSA
             H, W = self.input_resolution
-            img_mask = torch.zeros((1, H, W, 1))  # 1 H W 1---Important！！！
+            img_mask = torch.zeros((1, H, W, 1)) 
             h_slices = (
                 slice(0, -self.window_size),
                 slice(-self.window_size, -self.shift_size),
@@ -321,11 +312,6 @@ class SwinTransformerBlock(nn.Module):
         self.register_buffer("attn_mask", attn_mask)
 
     def forward(self, x):
-        """
-        SwinTransformerBlock(STB)模块
-        :param x: 输入此的x是整图. [B, L, C], L=H*W, torch.Size([1, 9216, 128])
-        :return: torch.Size([1, 9216, 128])
-        """
         H, W = self.input_resolution
         B, L, C = x.shape
         assert L == H * W, "input feature has wrong size"
@@ -403,7 +389,6 @@ class PatchMerging(nn.Module):
 
     def forward(self, x):
         """
-
         :param x: B, H*W, C
         :return:  B, 1/4 * H*W, 2C
         """
@@ -646,10 +631,6 @@ class RPatchEmbed(nn.Module):
 
         self.reduction = nn.Linear(2 * embed_dim, embed_dim, bias=False)
 
-        # self.proj = nn.Conv2d(
-        #     in_chans, embed_dim, kernel_size=patch_size, stride=patch_size
-        # )  # dim 3->128
-        # 对偶
         self.proj = nn.ConvTranspose2d(
             2 * embed_dim, 1, kernel_size=patch_size, stride=patch_size, bias=False
         )
@@ -768,7 +749,7 @@ class DirectField(nn.Module):
 
         select_x = x.clone().transpose(2, 3)
         for i in range(self.shift_n):
-            # 处理
+
             select_x = F.grid_sample(
                 select_x,
                 grid,
@@ -856,7 +837,7 @@ class RSwinTransformer(nn.Module):
         self.layers = nn.ModuleList()
         for i_layer in range(self.num_layers):  # 4
             layer = BasicLayer(
-                dim=int(embed_dim * 0.5**i_layer),  # ================= 【修改】
+                dim=int(embed_dim * 0.5**i_layer),
                 input_resolution=(
                     patches_resolution[0] * (2**i_layer),
                     patches_resolution[1] * (2**i_layer),
@@ -908,7 +889,7 @@ class RSwinTransformer(nn.Module):
         layer_features = []
         # (1) 过3个RSwinT
         for i, layer in enumerate(self.layers):
-            r = encoder_features[3 - i]  # ====================== 【坑爹索引，后面完善】
+            r = encoder_features[3 - i]
             # print(f"{i}, x:{x.shape}, r:{r.shape}")
             x = torch.cat((x, r), dim=-1)
             x = layer(x).cuda()
@@ -1047,30 +1028,11 @@ class SwinTransformer(nn.Module):
         # ==============
         for layer in self.layers:
             x = layer(x)
-
             layer_features.append(x)
-            # B, L, C = x.shape
-            # # print('x:', x.shape)
-            # xl = (
-            #     x.view(B, int(np.sqrt(L)), int(np.sqrt(L)), -1)
-            #     .permute(0, 3, 1, 2)  # 将tensor的维度换位
-            #     .contiguous()  # 如果在view之前用了transpose, permute等，需要用contiguous()来返回一个contiguous copy。
-            # )
-            # # print('xl',xl.shape)
-            # layer_features.append(xl)
 
         x = self.norm(x)  # B L C
 
         layer_features[-1] = x
-        # B, L, C = x.shape
-        # # x = self.avgpool(x.ranspose(1, 2))  # B C 1
-        # x = (
-        #     x.view(B, int(np.sqrt(L)), int(np.sqrt(L)), -1)
-        #     .permute(0, 3, 1, 2)
-        #     .contiguous()
-        # )
-        # # x = torch.flatten(x, 1)
-        # layer_features[-1] = x
 
         return layer_features
 
