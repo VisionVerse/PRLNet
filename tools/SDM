@@ -1,0 +1,108 @@
+#!/usr/bin/env python
+# -*- coding:utf-8 -*-
+
+
+"""
+-------------------------------------------------
+File Name: SDM
+Description :Document description
+
+Author: lenovo
+date: 2022/5/25
+-------------------------------------------------
+Change Activity:
+2022/5/25: Description of change
+-------------------------------------------------
+"""
+
+import os
+import numpy as np
+import cv2
+import matplotlib.pyplot as plt
+from PIL import Image
+
+from scipy.ndimage import distance_transform_edt as distance
+from skimage import segmentation as skimage_seg
+from sklearn import preprocessing
+
+
+import torch
+
+
+def my_compute_sdf(img_gt):
+    """
+    处理单张图片
+    compute the signed distance map of binary mask
+    input: img_gt, shape = (h, w), 阈值：[0, 1]
+    output: the Signed Distance Map (SDM)
+    sdf(x) =     0;     x in segmentation boundary
+             -inf|x-y|; x in segmentation
+             +inf|x-y|; x out of segmentation
+    normalize sdf to [-1,1]
+    """
+
+    img_gt = img_gt.astype(np.uint8)
+    # normalized_sdf = np.zeros(out_shape)
+    normalized_sdf = np.zeros_like(img_gt)
+
+    posmask = img_gt.astype(np.bool_)
+
+    if posmask.any():
+        negmask = ~posmask
+        posdis = distance(posmask)
+        negdis = distance(negmask)
+
+        boundary = skimage_seg.find_boundaries(posmask, mode="inner").astype(np.uint8)
+
+        sdf = (negdis - np.min(negdis)) / (np.max(negdis) - np.min(negdis)) - \
+              (posdis - np.min(posdis)) / (np.max(posdis) - np.min(posdis))
+        sdf[boundary == 1] = 0
+
+        # sdf = preprocessing.MaxAbsScaler().fit_transform(sdf)
+
+        # assert np.min(sdf) == -1.0, print('1min-max, min-max', np.min(posdis), np.max(posdis), np.min(negdis), np.max(negdis))
+        # assert np.max(sdf) == 1.0, print('2min-max, min-max', np.min(posdis), np.max(posdis), np.min(negdis), np.max(negdis))
+
+        normalized_sdf = sdf
+
+    return normalized_sdf
+
+
+def compute_sdf(img_gt, out_shape):
+    """
+    compute the signed distance map of binary mask
+    input: segmentation mask, shape = (batch_size, x, y, z)
+    output: the Signed Distance Map (SDM)
+    sdf(x) = 0;         x in segmentation boundary
+             -inf|x-y|; x in segmentation
+             +inf|x-y|; x out of segmentation
+    normalize sdf to [-1,1]
+    """
+
+    img_gt = img_gt.astype(np.uint8)
+    normalized_sdf = np.zeros(out_shape)
+
+    for b in range(out_shape[0]):  # batch size
+        posmask = img_gt[b].astype(np.bool)
+        if posmask.any():
+            negmask = ~posmask
+
+            posdis = distance(posmask)
+            negdis = distance(negmask)
+
+            sdf = (negdis - np.min(negdis)) / (np.max(negdis) - np.min(negdis)) - \
+                  (posdis - np.min(posdis)) / (np.max(posdis) - np.min(posdis))
+
+            boundary = skimage_seg.find_boundaries(posmask, mode="inner").astype(np.uint8)
+
+            sdf[boundary == 1] = 0
+            normalized_sdf[b] = sdf
+            # assert np.min(sdf) == -1.0, print(np.min(posdis), np.max(posdis), np.min(negdis), np.max(negdis))
+            # assert np.max(sdf) ==  1.0, print(np.min(posdis), np.min(negdis), np.max(posdis), np.max(negdis))
+
+            plt.imshow(boundary[0], vmin=-1, vmax=1, cmap=plt.cm.jet)
+            plt.colorbar(fraction=0.034, pad=0.05)
+            plt.show()
+
+    return normalized_sdf
+
