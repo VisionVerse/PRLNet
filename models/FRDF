@@ -44,8 +44,6 @@ class FRDF(nn.Module):
             )
 
     def forward(self, x):
-        """
-        """
         df = self.ConvDf_1x1(x)
         N, _, H, W = df.shape
 
@@ -62,21 +60,16 @@ class FRDF(nn.Module):
         )
         grid = grid + scale * df
 
-        # grid = grid.permute(0, 2, 3, 1)
-        # grid = grid.permute(0, 3, 2, 1)
         grid = grid.permute(0, 2, 3, 1).transpose(1, 2)
         grid_ = grid + 0.0
         grid[..., 0] = 2 * grid_[..., 0] / (H - 1) - 1
         grid[..., 1] = 2 * grid_[..., 1] / (W - 1) - 1
 
-        # features = []
-        # select_x = x.clone()
         select_x = x.clone().transpose(2, 3)
         for i in range(self.shift_n):
 
             t = select_x.detach().cpu().numpy()
 
-            # 处理
             select_x = F.grid_sample(
                 select_x,
                 grid,
@@ -95,11 +88,3 @@ class FRDF(nn.Module):
         select_x = self.fuse_conv(torch.cat([x, select_x], dim=1))
 
         return [select_x, auxseg]
-
-
-def main():
-    pass
-
-
-if __name__ == "__main__":
-    main()
