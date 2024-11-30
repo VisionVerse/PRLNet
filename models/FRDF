@@ -1,0 +1,105 @@
+#!/usr/bin/env python
+# -*- coding:utf-8 -*-
+
+
+"""
+-------------------------------------------------
+File Name: FRDF
+Description :Document description
+Author: lenovo
+date: 2023-2-23
+-------------------------------------------------
+Change Activity:
+2023-2-23: Description of change
+-------------------------------------------------
+"""
+
+import os
+import numpy as np
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+class FRDF(nn.Module):
+    def __init__(self, in_channels, shift_n=6, n_class=1, auxseg=True):
+        super(FRDF, self).__init__()
+        # 生成DF
+        self.ConvDf_1x1 = nn.Conv2d(in_channels, 2, kernel_size=1, stride=1, padding=0)
+
+        self.shift_n = shift_n
+        self.n_class = n_class
+        self.auxseg = auxseg
+        self.fuse_conv = nn.Sequential(
+            nn.Conv2d(in_channels * 2, in_channels, kernel_size=1, padding=0),
+            nn.BatchNorm2d(in_channels),
+            nn.ReLU(inplace=True),
+        )
+        if auxseg:
+            self.auxseg_conv = nn.Sequential(
+                nn.Conv2d(in_channels, self.n_class, 1),
+                nn.BatchNorm2d(self.n_class),
+                nn.ReLU(inplace=True),
+            )
+
+    def forward(self, x):
+        """
+        """
+        df = self.ConvDf_1x1(x)
+        N, _, H, W = df.shape
+
+        mag = torch.sqrt(torch.sum(df**2, dim=1))
+        greater_mask = mag > 0.5
+        greater_mask = torch.stack([greater_mask, greater_mask], dim=1)
+        df[~greater_mask] = 0
+
+        scale = 1.0
+
+        grid = torch.stack(torch.meshgrid(torch.arange(H), torch.arange(W)), dim=0)
+        grid = (
+            grid.expand(N, -1, -1, -1).to(x.device, dtype=torch.float).requires_grad_()
+        )
+        grid = grid + scale * df
+
+        # grid = grid.permute(0, 2, 3, 1)
+        # grid = grid.permute(0, 3, 2, 1)
+        grid = grid.permute(0, 2, 3, 1).transpose(1, 2)
+        grid_ = grid + 0.0
+        grid[..., 0] = 2 * grid_[..., 0] / (H - 1) - 1
+        grid[..., 1] = 2 * grid_[..., 1] / (W - 1) - 1
+
+        # features = []
+        # select_x = x.clone()
+        select_x = x.clone().transpose(2, 3)
+        for i in range(self.shift_n):
+
+            t = select_x.detach().cpu().numpy()
+
+            # 处理
+            select_x = F.grid_sample(
+                select_x,
+                grid,
+                mode="bilinear",
+                padding_mode="border",
+                align_corners=True,
+            )
+
+
+        if self.auxseg:
+            auxseg = self.auxseg_conv(x)
+        else:
+            auxseg = None
+
+        select_x = select_x.transpose(2, 3)
+        select_x = self.fuse_conv(torch.cat([x, select_x], dim=1))
+
+        return [select_x, auxseg]
+
+
+def main():
+    pass
+
+
+if __name__ == "__main__":
+    main()
