@@ -169,8 +169,6 @@ def train(train_loader, model, optimizer, epoch):
 if __name__ == "__main__":
 
     start_datetime = datetime.now().replace(microsecond=0)
-    best_epoch = 1
-    best_s, best_f, best_e, best_mae = 0, 0, 0, 1
 
     print("Start train...")
     print(f"===== {opt.save_path} =====")
